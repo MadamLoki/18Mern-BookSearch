@@ -1,4 +1,4 @@
-import { ExpressContext } from 'apollo-server-express';
+import { Request } from 'express';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 
@@ -10,29 +10,21 @@ interface JwtPayload {
   email: string;
 }
 
-export const authMiddleware = ({ req }: ExpressContext) => {
-  // Allow token to be sent via req.body, req.query, or headers
-  let token = req.body.token || req.query.token || req.headers.authorization;
+export const authMiddleware = async (req: Request) => {
+  let token = req.headers.authorization;
 
-  // ["Bearer", "<tokenvalue>"]
-  if (req.headers.authorization) {
-    token = token.split(' ').pop().trim();
-    return { req };
+  if (token && token.startsWith('Bearer ')) {
+    token = token.slice(7);
+    try {
+      const secretKey = process.env.JWT_SECRET_KEY || '';
+      const user = jwt.verify(token, secretKey) as JwtPayload;
+      return { user };
+    } catch (err) {
+      console.error('Invalid token');
+      return {};
+    }
   }
-
-  if (!token) {
-    return req;
-  }
-
-  try {
-    const secretKey = process.env.JWT_SECRET_KEY || '';
-    const { _id, username, email } = jwt.verify(token, secretKey) as JwtPayload;
-    req.user = { _id, username, email };
-  } catch (err) {
-    console.error('Invalid token');
-  }
-
-  return req;
+  return {};
 };
 
 export const signToken = (username: string, email: string, _id: unknown) => {
